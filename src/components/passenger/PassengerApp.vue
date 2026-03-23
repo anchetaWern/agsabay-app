@@ -46,7 +46,19 @@
     <div v-if="screen === 'matches'" class="card" style="display: grid; gap: 12px;">
       <h3 style="margin: 0;">Matches</h3>
       <p v-if="matches.length === 0" style="margin: 0; color: #6b7280;">Waiting for matches...</p>
-      <div v-for="match in matches" :key="match.plate_number" class="card" style="box-shadow: none; border: 1px solid #e5e7eb;">
+      <div v-for="match in matches" :key="match.plate_number" class="card match-card" style="box-shadow: none; border: 1px solid #e5e7eb;">
+        <div class="match-card__ttl" aria-hidden="true">
+          <svg class="ttl-ring" viewBox="0 0 36 36">
+            <circle class="ttl-ring__bg" cx="18" cy="18" r="15.5" />
+            <circle
+              class="ttl-ring__fg"
+              cx="18"
+              cy="18"
+              r="15.5"
+              :style="getMatchRingStyle(match)"
+            />
+          </svg>
+        </div>
         <h4 style="margin: 0 0 8px;">{{ match.plate_number }}</h4>
         <p style="margin: 0 0 12px; color: #6b7280;">Seats available: {{ match.seats_available }}</p>
         <button class="btn btn-success" @click="handleConfirm(match)">I'm on board</button>
@@ -85,6 +97,8 @@ import { useGps } from '../../composables/useGps'
 import echo from '../../services/echo'
 import { requestRide, cancelRequest, confirmBoarding } from '../../services/api'
 
+const DRIVER_MATCH_TIMEOUT = 180000; // 180000; // 3 minute
+
 const screen = ref('map')
 const pickup = ref(null)
 const destination = ref(null)
@@ -92,6 +106,7 @@ const error = ref('')
 const loading = ref(false)
 const matches = ref([])
 const ttlSeconds = ref(300)
+const nowMs = ref(Date.now())
 
 const { getCurrentPosition } = useGps()
 
@@ -99,6 +114,7 @@ let map = null
 let pickupMarker = null
 let destinationMarker = null
 let ttlTimer = null
+let matchTtlTimer = null
 let channel = null
 let droppedTimer = null
 
@@ -231,6 +247,29 @@ const startTtl = () => {
   }, 1000)
 }
 
+const startMatchTtl = () => {
+  if (matchTtlTimer) clearInterval(matchTtlTimer)
+  matchTtlTimer = setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1000)
+}
+
+const getMatchRemainingPercent = (match) => {
+  if (!match.expiresAt) return 0
+  const remaining = Math.max(match.expiresAt - nowMs.value, 0)
+  return Math.min((remaining / DRIVER_MATCH_TIMEOUT) * 100, 100)
+}
+
+const getMatchRingStyle = (match) => {
+  const percent = getMatchRemainingPercent(match)
+  const circumference = 2 * Math.PI * 15.5
+  const offset = circumference - (percent / 100) * circumference
+  return {
+    strokeDasharray: `${circumference}`,
+    strokeDashoffset: `${offset}`,
+  }
+}
+
 const handleCancel = async () => {
   try {
     await cancelRequest(sessionToken.value)
@@ -290,6 +329,10 @@ const resetAll = () => {
     clearInterval(ttlTimer)
     ttlTimer = null
   }
+  if (matchTtlTimer) {
+    clearInterval(matchTtlTimer)
+    matchTtlTimer = null
+  }
   if (droppedTimer) {
     clearTimeout(droppedTimer)
     droppedTimer = null
@@ -326,7 +369,13 @@ const setupChannel = () => {
   channel.subscription.bind('match.found', (payload) => {
     const exists = matches.value.some((item) => item.plate_number === payload.plate_number)
     if (!exists) {
-      matches.value.push(payload)
+      matches.value.push({
+        ...payload,
+        expiresAt: Date.now() + DRIVER_MATCH_TIMEOUT,
+      })
+      if (!matchTtlTimer) {
+        startMatchTtl()
+      }
 
       // Auto-remove this match after 30 seconds if not boarded
       setTimeout(() => {
@@ -336,7 +385,11 @@ const setupChannel = () => {
           screen.value = 'waiting'
           startTtl()  // restart the TTL countdown
         }
-      }, 30000)
+        if (matches.value.length === 0 && matchTtlTimer) {
+          clearInterval(matchTtlTimer)
+          matchTtlTimer = null
+        }
+      }, DRIVER_MATCH_TIMEOUT)
     }
     if (screen.value !== 'onboard') {
       screen.value = 'matches'
@@ -366,6 +419,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (ttlTimer) {
     clearInterval(ttlTimer)
+  }
+  if (matchTtlTimer) {
+    clearInterval(matchTtlTimer)
   }
   if (droppedTimer) {
     clearTimeout(droppedTimer)
@@ -407,6 +463,39 @@ watch(screen, async (next) => {
   height: 100%;
   background: var(--color-secondary);
   transition: width 1s linear;
+}
+
+.match-card {
+  position: relative;
+}
+
+.match-card__ttl {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+}
+
+.ttl-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ttl-ring__bg {
+  fill: none;
+  stroke: #e5e7eb;
+  stroke-width: 3;
+}
+
+.ttl-ring__fg {
+  fill: none;
+  stroke: var(--color-secondary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
 }
 
 @keyframes spin {
