@@ -341,6 +341,16 @@ const setupChannel = () => {
     const exists = matches.value.some((item) => item.plate_number === payload.plate_number)
     if (!exists) {
       matches.value.push(payload)
+
+      // Auto-remove this match after 30 seconds if not boarded
+      setTimeout(() => {
+        matches.value = matches.value.filter(m => m.plate_number !== payload.plate_number)
+        // If no matches left, go back to waiting screen
+        if (matches.value.length === 0 && screen.value === 'matches') {
+          screen.value = 'waiting'
+          startTtl()  // restart the TTL countdown
+        }
+      }, 30000)
     }
     if (screen.value !== 'onboard') {
       screen.value = 'matches'
@@ -386,7 +396,6 @@ watch(screen, async (next) => {
     map.invalidateSize()
   }
 })
-
 </script>
 
 <style scoped>
