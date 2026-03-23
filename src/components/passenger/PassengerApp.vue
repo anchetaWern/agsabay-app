@@ -25,7 +25,7 @@
       >
         {{ loading ? 'Requesting...' : 'Find a Tricycle' }}
       </button>
-      <button class="btn btn-secondary" @click="resetAll">Start over</button>
+      <button class="btn btn-outline" @click="resetAll">Start over</button>
       <p v-if="error" style="margin: 0; color: #dc2626;">{{ error }}</p>
     </div>
 
@@ -51,7 +51,7 @@
         <p style="margin: 0 0 12px; color: #6b7280;">Seats available: {{ match.seats_available }}</p>
         <button class="btn btn-success" @click="handleConfirm(match)">I'm on board</button>
       </div>
-      <button class="btn btn-primary" :disabled="loading" @click="handleRequestRide">
+      <button class="btn btn-outline" :disabled="loading" @click="handleRequestRide">
         {{ loading ? 'Requesting...' : 'Re-hail' }}
       </button>
     </div>
@@ -65,10 +65,10 @@
       <div class="page" style="justify-content: center; align-items: center; text-align: center;">
         <div style="font-size: 64px;">🏁</div>
         <h2 style="margin-top: 16px;">You've arrived!</h2>
-        <p style="color:#666; font-size:14px; margin-top: 8px;">
+        <p style="color:#FFF; font-size:14px; margin-top: 8px;">
           Thank you for riding with {{ boardedPlate }}.
         </p>
-        <button class="btn btn-secondary" style="margin-top: 32px;" @click="handleDone">
+        <button class="btn btn-outline" style="margin-top: 32px;" @click="handleDone">
           Done
         </button>
       </div>
@@ -404,7 +404,7 @@ watch(screen, async (next) => {
   height: 42px;
   border-radius: 999px;
   border: 4px solid #e5e7eb;
-  border-top-color: #1a56db;
+  border-top-color: var(--color-secondary);
   margin: 0 auto;
   animation: spin 1s linear infinite;
 }
@@ -419,7 +419,7 @@ watch(screen, async (next) => {
 
 .ttl-bar__fill {
   height: 100%;
-  background: #1a56db;
+  background: var(--color-secondary);
   transition: width 1s linear;
 }
 

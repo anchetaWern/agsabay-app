@@ -30,6 +30,13 @@ const handleLogout = () => {
 </script>
 
 <style>
+:root {
+  --color-primary: #74b715;
+  --color-secondary: #2a3b4a;
+  --color-surface: #ffffff;
+  --color-text: #111827;
+  --color-text-inverse: #f8fafc;
+}
 * {
   box-sizing: border-box;
 }
@@ -37,8 +44,8 @@ const handleLogout = () => {
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--color-secondary);
+  color: var(--color-text-inverse);
 }
 
 .page {
@@ -71,13 +78,13 @@ body {
 }
 
 .btn-primary {
-  background: #1a56db;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
 }
 
 .btn-success {
-  background: #16a34a;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
 }
 
 .btn-danger {
@@ -86,14 +93,21 @@ body {
 }
 
 .btn-secondary {
-  background: #fff;
-  color: #111827;
-  border: 1px solid #d1d5db;
+  background: var(--color-secondary);
+  color: var(--color-text-inverse);
+  border: 1px solid #1f2b36;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
 }
 
 .card {
   width: 100%;
-  background: #fff;
+  background: var(--color-surface);
+  color: var(--color-text);
   border-radius: 16px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   padding: 20px;

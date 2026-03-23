@@ -1,6 +1,7 @@
 <template>
   <div class="card" style="text-align: center; display: grid; gap: 16px;">
     <div>
+      <img src="/agsabay-logo.png" width="100px" />
       <h1 style="margin: 0; font-size: 28px;">AgSabay</h1>
       <p style="margin: 8px 0 0; color: #6b7280;">Carpool matching for tricycles</p>
     </div>
