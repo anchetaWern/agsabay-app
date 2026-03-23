@@ -49,8 +49,10 @@
   <div id="app">
     <div id="toolbar">
       <h1>🛺 Driver Location Click Simulator</h1>
-      <span class="pill">Driver ID: <strong>1</strong></span>
-      <span class="pill">Endpoint: <strong>/api/drivers/1/location</strong></span>
+      <span class="pill">Driver ID:
+        <input id="driverIdInput" type="text" value="1" inputmode="numeric" style="width:52px;margin-left:6px;border:1px solid #e0dfd8;border-radius:8px;padding:3px 6px;font-size:12px;background:#fff;color:#333;">
+      </span>
+      <span class="pill">Endpoint: <strong id="endpointText">/api/drivers/1/location</strong></span>
       <button class="btn" id="bClear">Clear log</button>
       <span class="pill" id="hint">Click anywhere on the map to move the driver</span>
     </div>
@@ -72,9 +74,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const DRIVER_ID = 1;
     const API_KEY = 'juan20';
-    const ENDPOINT = 'https://agsabay-server.test/api/drivers/1/location';
+    const API_BASE = 'https://agsabay-server.test/api/drivers';
+    let currentDriverId = '1';
 
     const map = L.map('map').setView([16.6151032, 120.3140831], 23);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -113,10 +115,19 @@
       log.prepend(div);
     }
 
+    function getEndpoint(driverId) {
+      return `${API_BASE}/${driverId}/location`;
+    }
+
+    function setEndpointText(driverId) {
+      const endpoint = `/api/drivers/${driverId}/location`;
+      document.getElementById('endpointText').textContent = endpoint;
+    }
+
     async function postLocation(lat, lng) {
       const started = new Date();
       try {
-        const res = await fetch(ENDPOINT, {
+        const res = await fetch(getEndpoint(currentDriverId), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -154,6 +165,14 @@
       document.getElementById('log').innerHTML = '<div class="log-entry">Log cleared.</div>';
     };
 
+    const driverIdInput = document.getElementById('driverIdInput');
+    driverIdInput.addEventListener('input', () => {
+      const value = driverIdInput.value.trim();
+      currentDriverId = value || '1';
+      setEndpointText(currentDriverId);
+    });
+
+    setEndpointText(currentDriverId);
     setStatus(null);
   </script>
 </body>
