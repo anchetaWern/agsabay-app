@@ -124,6 +124,12 @@
       document.getElementById('endpointText').textContent = endpoint;
     }
 
+    function syncDriverIdFromInput() {
+      const value = driverIdInput.value.trim();
+      currentDriverId = value || '1';
+      setEndpointText(currentDriverId);
+    }
+
     async function postLocation(lat, lng) {
       const started = new Date();
       try {
@@ -155,6 +161,7 @@
     }
 
     map.on('click', e => {
+      syncDriverIdFromInput();
       if (driverMarker) driverMarker.setLatLng(e.latlng);
       else driverMarker = L.marker(e.latlng, { icon: driverIcon, zIndexOffset: 2000 }).addTo(map);
       setStatus(e.latlng);
@@ -167,9 +174,7 @@
 
     const driverIdInput = document.getElementById('driverIdInput');
     driverIdInput.addEventListener('input', () => {
-      const value = driverIdInput.value.trim();
-      currentDriverId = value || '1';
-      setEndpointText(currentDriverId);
+      syncDriverIdFromInput();
     });
 
     setEndpointText(currentDriverId);
