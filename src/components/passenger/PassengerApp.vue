@@ -10,7 +10,7 @@
       </button>
     </div>
 
-    <div v-if="screen === 'map'" class="card" style="display: grid; gap: 12px;">
+    <div v-show="screen === 'map'" class="card" style="display: grid; gap: 12px;">
       <div>
         <p style="margin: 0; font-size: 14px; color: #6b7280;">Step</p>
         <h3 style="margin: 4px 0 0;">{{ stepLabel }}</h3>
@@ -25,7 +25,7 @@
       >
         {{ loading ? 'Requesting...' : 'Find a Tricycle' }}
       </button>
-      <button class="btn btn-secondary" @click="resetMarkers">Start over</button>
+      <button class="btn btn-secondary" @click="resetAll">Start over</button>
       <p v-if="error" style="margin: 0; color: #dc2626;">{{ error }}</p>
     </div>
 
@@ -51,11 +51,13 @@
         <p style="margin: 0 0 12px; color: #6b7280;">Seats available: {{ match.seats_available }}</p>
         <button class="btn btn-success" @click="handleConfirm(match)">I'm on board</button>
       </div>
+      <button class="btn btn-primary" :disabled="loading" @click="handleRequestRide">
+        {{ loading ? 'Requesting...' : 'Re-hail' }}
+      </button>
     </div>
 
     <div v-if="screen === 'onboard'" class="card" style="display: grid; gap: 12px; text-align: center;">
       <h3 style="margin: 0;">You're on board [{{ boardedPlate  }}]! Enjoy your ride.</h3>
-      <button class="btn btn-primary" @click="handleDone">Done</button>
     </div>
 
     <!-- SCREEN 5 — Dropped off -->
@@ -66,7 +68,7 @@
         <p style="color:#666; font-size:14px; margin-top: 8px;">
           Thank you for riding with {{ boardedPlate }}.
         </p>
-        <button class="btn btn-secondary" style="margin-top: 32px;" @click="resetAll">
+        <button class="btn btn-secondary" style="margin-top: 32px;" @click="handleDone">
           Done
         </button>
       </div>
@@ -76,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import L from 'leaflet'
 import { v4 as uuidv4 } from 'uuid'
 import { useGps } from '../../composables/useGps'
@@ -98,6 +100,7 @@ let pickupMarker = null
 let destinationMarker = null
 let ttlTimer = null
 let channel = null
+let droppedTimer = null
 
 const boardedPlate = ref(null)
 
@@ -115,7 +118,7 @@ const stepLabel = computed(() => {
 const ttlPercent = computed(() => (ttlSeconds.value / 300) * 100)
 
 const initMap = () => {
-  map = L.map('map').setView([15.9755, 120.5714], 15)
+  map = L.map('map').setView([16.6150981, 120.3140831], 15)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
@@ -197,6 +200,8 @@ const handleRequestRide = async () => {
   loading.value = true
   error.value = ''
   try {
+    handleCancel()
+
     await requestRide({
       session_token: sessionToken.value,
       pickup_lat: pickup.value.lat,
@@ -233,6 +238,14 @@ const handleCancel = async () => {
     // Ignore cancel errors.
   }
   screen.value = 'map'
+
+  /*
+  if (map) {
+    map.remove()
+    map = null
+  } 
+  */
+
   if (ttlTimer) {
     clearInterval(ttlTimer)
     ttlTimer = null
@@ -264,20 +277,62 @@ const handleConfirm = async (match) => {
 }
 
 const handleDone = () => {
-  screen.value = 'map'
-  matches.value = []
-  resetMarkers()
-  refreshSession()
+  console.log('handle done')
+  resetAll()
+  setTimeout(() => {
+    window.location.reload();
+  }, 3000)
 }
 
 const refreshSession = () => {
-  if (channel) {
-    channel.stopListening('match.found')
-    echo.leave(`passenger.${sessionToken.value}`)
-  }
+  closeSockets()
   sessionToken.value = uuidv4()
   localStorage.setItem('pax_session', sessionToken.value)
   setupChannel()
+}
+
+const closeSockets = () => {
+  if (!channel) return
+  channel.stopListening('match.found')
+  channel.stopListening('passenger.dropped')
+  echo.leave(`passenger.${sessionToken.value}`)
+  channel = null
+}
+
+const resetAll = () => {
+  if (ttlTimer) {
+    clearInterval(ttlTimer)
+    ttlTimer = null
+  }
+  if (droppedTimer) {
+    clearTimeout(droppedTimer)
+    droppedTimer = null
+  }
+
+  closeSockets()
+
+  screen.value = 'map'
+  pickup.value = null
+  destination.value = null
+  error.value = ''
+  loading.value = false
+  matches.value = []
+  ttlSeconds.value = 300
+  boardedPlate.value = null
+  resetMarkers()
+
+  if (map) {
+    map.remove()
+    map = null
+  }
+
+  sessionToken.value = uuidv4()
+  localStorage.setItem('pax_session', sessionToken.value)
+  setupChannel()
+
+  nextTick(() => {
+    initMap()
+  })
 }
 
 const setupChannel = () => {
@@ -295,6 +350,13 @@ const setupChannel = () => {
   channel.subscription.bind('passenger.dropped', (payload) => {
     console.log('dropped passenger: ', payload);
     screen.value = 'dropped'
+    closeSockets()
+    if (droppedTimer) {
+      clearTimeout(droppedTimer)
+    }
+    droppedTimer = setTimeout(() => {
+      resetAll()
+    }, 30000)
   })
   
 
@@ -309,17 +371,18 @@ onBeforeUnmount(() => {
   if (ttlTimer) {
     clearInterval(ttlTimer)
   }
-  if (channel) {
-    channel.stopListening('match.found')
-    echo.leave(`passenger.${sessionToken.value}`)
+  if (droppedTimer) {
+    clearTimeout(droppedTimer)
   }
+  closeSockets()
   if (map) {
     map.remove()
   }
 })
 
-watch(screen, (next) => {
+watch(screen, async (next) => {
   if (next === 'map' && map) {
+    await nextTick()
     map.invalidateSize()
   }
 })
