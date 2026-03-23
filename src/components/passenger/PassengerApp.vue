@@ -45,6 +45,7 @@
 
     <div v-if="screen === 'matches'" class="card" style="display: grid; gap: 12px;">
       <h3 style="margin: 0;">Matches</h3>
+      <p v-if="error" style="margin: 0; color: #dc2626;">{{ error }}</p>
       <p v-if="matches.length === 0" style="margin: 0; color: #6b7280;">Waiting for matches...</p>
       <div v-for="match in matches" :key="match.plate_number" class="card match-card" style="box-shadow: none; border: 1px solid #e5e7eb;">
         <div class="match-card__ttl" aria-hidden="true">
@@ -132,6 +133,14 @@ const stepLabel = computed(() => {
 })
 
 const ttlPercent = computed(() => (ttlSeconds.value / 300) * 100)
+
+const getApiErrorMessage = (err, fallback) => {
+  if (!err) return fallback
+  const message =
+    err?.response?.data?.error ||
+    err?.message
+  return typeof message === 'string' && message.trim() ? message : fallback
+}
 
 const initMap = () => {
   map = L.map('map').setView([16.6150981, 120.3140831], 15)
@@ -304,7 +313,10 @@ const handleConfirm = async (match) => {
       ttlTimer = null
     }
   } catch (err) {
-    error.value = 'Could not confirm. Are you near the tricycle?'
+    error.value = getApiErrorMessage(
+      err,
+      'Could not confirm. Are you near the tricycle?',
+    )
   }
 }
 
