@@ -239,13 +239,6 @@ const handleCancel = async () => {
   }
   screen.value = 'map'
 
-  /*
-  if (map) {
-    map.remove()
-    map = null
-  } 
-  */
-
   if (ttlTimer) {
     clearInterval(ttlTimer)
     ttlTimer = null
@@ -253,7 +246,7 @@ const handleCancel = async () => {
 }
 
 const handleConfirm = async (match) => {
-  console.log('MATCY==: ', match);
+  
   error.value = ''
   try {
     const position = await getCurrentPosition()
@@ -277,18 +270,11 @@ const handleConfirm = async (match) => {
 }
 
 const handleDone = () => {
-  console.log('handle done')
+
   resetAll()
   setTimeout(() => {
     window.location.reload();
   }, 3000)
-}
-
-const refreshSession = () => {
-  closeSockets()
-  sessionToken.value = uuidv4()
-  localStorage.setItem('pax_session', sessionToken.value)
-  setupChannel()
 }
 
 const closeSockets = () => {

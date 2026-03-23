@@ -172,7 +172,7 @@ const startDuty = async () => {
   try {
     const response = await setDriverDuty(driverId.value, true)
     isOnDuty.value = response.data?.is_on_duty ?? true
-    startWatching(handleGpsUpdate)
+    startWatching(handleGpsUpdate) // note: comment out while testing. 
   } catch (err) {
     error.value = 'Could not go on duty.'
   } finally {
@@ -226,39 +226,6 @@ const handleDropoff = async (passengerId) => {
   }
 }
 
-/*
-const setupChannel = () => {
-  if (!driverId.value) return
-  channel = echo.channel(`driver.${driverId.value}`)
-
-  // Catch-all — logs every event on this channel
-  channel.subscription.bind_global((eventName, data) => {
-    console.log('DRIVER CHANNEL EVENT:', eventName, data)
-  })
-
-  channel.listen('passenger.nearby', (payload) => {
-    showNearbyAlert(payload)
-  })
-
-  channel.listen('passenger.boarded', (payload) => {
-    console.log('BOARDED PAYLOAD:', payload)
-    console.log('passenger_id:', payload.passenger_id)
-  console.log('passenger_id nested:', payload?.data?.passenger_id)
-
-    const exists = onboardPassengers.value.find(p => p.id === payload.passenger_id)
-    if (!exists) {
-      console.log('exists!!')
-      onboardPassengers.value.push({
-        id:         payload.passenger_id,
-        dest_label: payload.dest_label,
-      })
-    }
-    seatsAvailable.value = payload.seats_available
-    nearbyAlert.value = null
-  })
-}
-*/
-
 const setupChannel = () => {
   if (!driverId.value) return
   channel = echo.channel(`driver.${driverId.value}`)
@@ -270,7 +237,6 @@ const setupChannel = () => {
   })
 
   channel.subscription.bind('passenger.boarded', (payload) => {
-    console.log('BOARDED:', payload)
     const exists = onboardPassengers.value.find(p => p.id === payload.passenger_id)
     if (!exists) {
       onboardPassengers.value.push({
@@ -283,7 +249,6 @@ const setupChannel = () => {
   })
 
   channel.subscription.bind('passenger.dropped', (payload) => {
-    console.log('PASSENGER DROPPED: ', payload)
     onboardPassengers.value = onboardPassengers.value.filter(
       p => p.id !== payload.passenger_id
     )
@@ -296,21 +261,8 @@ onMounted(() => {
   setupChannel()
 })
 
-/*
-onBeforeUnmount(() => {
-  stopWatching()
-  if (channel) {
-    channel.stopListening('passenger.nearby')
-    channel.stopListening('passenger.boarded')
-    echo.leave(`driver.${driverId.value}`)
-  }
-  if (alertTimeout) {
-    clearTimeout(alertTimeout)
-  }
-})
-  */
 
- onBeforeUnmount(() => {
+onBeforeUnmount(() => {
   stopWatching()
   if (channel) {
     channel.subscription.unbind('passenger.nearby')
