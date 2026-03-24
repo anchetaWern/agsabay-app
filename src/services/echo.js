@@ -8,10 +8,10 @@ const echo = new Echo({
   key: import.meta.env.VITE_PUSHER_APP_KEY,
   cluster: 'mt1',
   wsHost: import.meta.env.VITE_PUSHER_HOST ?? '127.0.0.1',
-  wsPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 8080),
-  wssPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 8080),
-  forceTLS: false,
-  enabledTransports: ['ws'],
+  wsPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 443),
+  wssPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 443),
+  forceTLS: true,
+  enabledTransports: ['wss'],
   disableStats: true,
 })
 
