@@ -3,18 +3,40 @@ import Pusher from 'pusher-js'
 
 window.Pusher = Pusher
 
+console.log('Echo boot start')
+
 const echo = new Echo({
   broadcaster: 'reverb',
-  key: import.meta.env.VITE_PUSHER_APP_KEY,
-  //cluster: 'mt1',
-  wsHost: import.meta.env.VITE_PUSHER_HOST ?? '127.0.0.1',
-  wsPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 443),
-  wssPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 443),
-  forceTLS: true,
-  enabledTransports: ['wss'],
-  disableStats: true,
+  key: import.meta.env.VITE_REVERB_APP_KEY,
+  wsHost: import.meta.env.VITE_REVERB_HOST,
+  wsPort: Number(import.meta.env.VITE_REVERB_PORT ?? 80),
+  wssPort: Number(import.meta.env.VITE_REVERB_PORT ?? 443),
+  forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
+  enabledTransports: ['ws', 'wss'],
 })
 
-window.Echo = echo  // add this line
+const pusher = echo.connector?.pusher
 
-export default echo
+if (pusher) {
+  pusher.connection.bind('state_change', (states) => {
+    console.log('Reverb state change:', states)
+  })
+
+  pusher.connection.bind('connected', () => {
+    console.log('Reverb connected')
+  })
+
+  pusher.connection.bind('error', (err) => {
+    console.error('Reverb connection error:', err)
+  })
+}
+
+window.Echo = echo
+
+console.log('Echo booted', {
+  key: import.meta.env.VITE_REVERB_APP_KEY,
+  host: import.meta.env.VITE_REVERB_HOST,
+  port: import.meta.env.VITE_REVERB_PORT,
+  scheme: import.meta.env.VITE_REVERB_SCHEME,
+  echo: window.Echo,
+})
