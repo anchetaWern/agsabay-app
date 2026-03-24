@@ -61,6 +61,17 @@
           <p v-if="accuracy" style="margin: 4px 0 0; color: #6b7280;">
             Accuracy: {{ Math.round(accuracy) }}m
           </p>
+          <p v-if="lastFixAt" style="margin: 4px 0 0; color: #6b7280;">
+            Last fix: {{ lastFixDisplay }}
+          </p>
+          <button
+            v-if="isOnDuty && gpsError"
+            class="btn btn-secondary"
+            style="width: auto; margin-top: 8px;"
+            @click="retryGps"
+          >
+            Retry GPS
+          </button>
         </div>
       </div>
 
@@ -105,7 +116,16 @@ const error = ref('')
 const nearbyAlert = ref(null)
 const onboardPassengers = ref([])
 
-const { lat, lng, accuracy, error: gpsError, startWatching, stopWatching } = useGps()
+const {
+  lat,
+  lng,
+  accuracy,
+  error: gpsError,
+  status: gpsStatus,
+  lastFixAt,
+  startWatching,
+  stopWatching,
+} = useGps()
 
 let alertTimeout = null
 let channel = null
@@ -116,16 +136,22 @@ const seatsAvailableDisplay = computed(() =>
 
 const gpsStatusText = computed(() => {
   if (!isOnDuty.value) return 'GPS idle'
-  if (gpsError.value) return gpsError.value
-  if (!lat.value || !lng.value) return 'Acquiring GPS...'
-  return 'GPS active'
+  if (gpsStatus.value === 'error') return gpsError.value || 'GPS error'
+  if (gpsStatus.value === 'acquiring') return 'Acquiring GPS...'
+  if (gpsStatus.value === 'active') return 'GPS active'
+  return 'Acquiring GPS...'
 })
 
 const gpsIndicatorColor = computed(() => {
   if (!isOnDuty.value) return '#9ca3af'
-  if (gpsError.value) return '#f59e0b'
-  if (!lat.value || !lng.value) return '#f59e0b'
+  if (gpsStatus.value === 'error') return '#f59e0b'
+  if (gpsStatus.value === 'acquiring') return '#f59e0b'
   return '#16a34a'
+})
+
+const lastFixDisplay = computed(() => {
+  if (!lastFixAt.value) return ''
+  return new Date(lastFixAt.value).toLocaleTimeString()
 })
 
 const forceUppercase = () => {
@@ -155,6 +181,8 @@ const handleRegister = async () => {
 }
 
 const handleGpsUpdate = async ({ lat: nextLat, lng: nextLng }) => {
+  if (!isOnDuty.value) return
+  if (gpsStatus.value !== 'active') return
   if (!driverId.value) return
   try {
     const response = await updateDriverLocation(driverId.value, nextLat, nextLng)
@@ -172,7 +200,7 @@ const startDuty = async () => {
   try {
     const response = await setDriverDuty(driverId.value, true)
     isOnDuty.value = response.data?.is_on_duty ?? true
-    startWatching(handleGpsUpdate) // note: comment out while testing. 
+    // startWatching(handleGpsUpdate)
   } catch (err) {
     error.value = 'Could not go on duty.'
   } finally {
@@ -192,6 +220,11 @@ const stopDuty = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const retryGps = () => {
+  if (!isOnDuty.value) return
+  startWatching(handleGpsUpdate)
 }
 
 const toggleDuty = () => {
