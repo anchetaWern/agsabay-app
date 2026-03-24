@@ -40,3 +40,5 @@ console.log('Echo booted', {
   scheme: import.meta.env.VITE_REVERB_SCHEME,
   echo: window.Echo,
 })
+
+export default echo
