@@ -4,9 +4,9 @@ import Pusher from 'pusher-js'
 window.Pusher = Pusher
 
 const echo = new Echo({
-  broadcaster: 'pusher',
+  broadcaster: 'reverb',
   key: import.meta.env.VITE_PUSHER_APP_KEY,
-  cluster: 'mt1',
+  //cluster: 'mt1',
   wsHost: import.meta.env.VITE_PUSHER_HOST ?? '127.0.0.1',
   wsPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 443),
   wssPort: Number(import.meta.env.VITE_PUSHER_PORT ?? 443),
