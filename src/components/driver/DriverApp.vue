@@ -200,7 +200,7 @@ const startDuty = async () => {
   try {
     const response = await setDriverDuty(driverId.value, true)
     isOnDuty.value = response.data?.is_on_duty ?? true
-    // startWatching(handleGpsUpdate)
+    startWatching(handleGpsUpdate)
   } catch (err) {
     error.value = 'Could not go on duty.'
   } finally {
