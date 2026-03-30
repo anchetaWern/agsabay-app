@@ -12,13 +12,25 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: [
+        'favicon.ico',
+        'agsabay-logo.png',
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+      ],
+      devOptions: {
+        enabled: true,
+      },
       manifest: {
         name: 'AgSabay',
         short_name: 'AgSabay',
         description: 'Carpool matching for tricycles',
         theme_color: '#1a56db',
         background_color: '#f3f4f6',
+        start_url: '/',
+        scope: '/',
         display: 'standalone',
+        id: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -37,6 +49,7 @@ export default defineConfig({
             purpose: 'any maskable',
           },
         ],
+        categories: ['travel', 'transportation', 'utilities'],
       },
     }),
   ],
