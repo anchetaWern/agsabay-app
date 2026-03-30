@@ -167,10 +167,10 @@ let toastId = 0
 
 const TOAST_DURATION_MS = 5000
 
-const showToast = (message) => {
+const showToast = (message, type = 'danger') => {
   if (!message) return
   const id = toastId++
-  toasts.value = [...toasts.value, { id, message }]
+  toasts.value = [...toasts.value, { id, message, type }]
   setTimeout(() => {
     dismissToast(id)
   }, TOAST_DURATION_MS)
@@ -350,6 +350,11 @@ const setupChannel = () => {
   // Echo's listen() adds a dot prefix which doesn't match our direct Pusher events
   channel.subscription.bind('passenger.nearby', (payload) => {
     showNearbyAlert(payload)
+    if (payload?.dest_label) {
+      showToast(`Passenger nearby — going to ${payload.dest_label}`, 'info')
+    } else {
+      showToast('Passenger nearby', 'info')
+    }
   })
 
   channel.subscription.bind('passenger.boarded', (payload) => {
@@ -359,6 +364,8 @@ const setupChannel = () => {
         id:         payload.passenger_id,
         dest_label: payload.dest_label,
       })
+      const destLabel = payload?.dest_label ? ` — ${payload.dest_label}` : ''
+      showToast(`Passenger #${payload.passenger_id} onboarded${destLabel}`, 'info')
     }
     seatsAvailable.value = payload.seats_available
     nearbyAlert.value = null
@@ -369,6 +376,8 @@ const setupChannel = () => {
       p => p.id !== payload.passenger_id
     )
     seatsAvailable.value = payload.seats_available
+    const destLabel = payload?.dest_label ? ` — ${payload.dest_label}` : ''
+    showToast(`Passenger #${payload.passenger_id} dropped off${destLabel}`, 'info')
   })
 
 }

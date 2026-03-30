@@ -1,7 +1,12 @@
 <template>
   <teleport to="body">
     <div class="toast-stack" aria-live="assertive" aria-atomic="true">
-      <div v-for="toast in toasts" :key="toast.id" class="toast">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast"
+        :class="`toast--${toast.type || 'danger'}`"
+      >
         <span class="toast__message">{{ toast.message }}</span>
         <button
           class="toast__close"
@@ -50,6 +55,11 @@ defineEmits(['dismiss'])
   display: flex;
   align-items: flex-start;
   gap: 12px;
+}
+
+.toast--info {
+  background: color-mix(in srgb, var(--color-secondary) 75%, #ffffff);
+  color: var(--color-text-inverse);
 }
 
 .toast__message {

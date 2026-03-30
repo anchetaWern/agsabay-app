@@ -133,10 +133,10 @@ let toastId = 0
 
 const TOAST_DURATION_MS = 5000
 
-const showToast = (message) => {
+const showToast = (message, type = 'danger') => {
   if (!message) return
   const id = toastId++
-  toasts.value = [...toasts.value, { id, message }]
+  toasts.value = [...toasts.value, { id, message, type }]
   setTimeout(() => {
     dismissToast(id)
   }, TOAST_DURATION_MS)
@@ -441,6 +441,14 @@ const setupChannel = () => {
         ...payload,
         expiresAt: Date.now() + DRIVER_MATCH_TIMEOUT,
       })
+      if (payload?.plate_number) {
+        const seats = typeof payload?.seats_available === 'number'
+          ? ` (${payload.seats_available} seat${payload.seats_available === 1 ? '' : 's'} available)`
+          : ''
+        showToast(`New match found: ${payload.plate_number}${seats}`, 'info')
+      } else {
+        showToast('New match found', 'info')
+      }
       if (!matchTtlTimer) {
         startMatchTtl()
       }
