@@ -102,6 +102,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import * as Sentry from '@sentry/vue'
 import { useGps } from '../../composables/useGps'
 import echo from '../../services/echo'
 import { registerDriver, setDriverDuty, updateDriverLocation, dropoffPassenger } from '../../services/api.js'
@@ -115,6 +116,14 @@ const loading = ref(false)
 const error = ref('')
 const nearbyAlert = ref(null)
 const onboardPassengers = ref([])
+
+const captureError = (err, context = {}) => {
+  if (!import.meta.env.VITE_SENTRY_DSN) return
+  Sentry.captureException(err, {
+    tags: { source: 'driver-app' },
+    extra: context,
+  })
+}
 
 const {
   lat,
@@ -174,6 +183,7 @@ const handleRegister = async () => {
     localStorage.setItem('driver_id', driverId.value)
     localStorage.setItem('driver_plate', driverPlate.value)
   } catch (err) {
+    captureError(err, { action: 'register_driver', plate_number: plateInput.value })
     error.value = 'Unable to register driver.'
   } finally {
     loading.value = false
@@ -190,6 +200,12 @@ const handleGpsUpdate = async ({ lat: nextLat, lng: nextLng }) => {
       seatsAvailable.value = response.data.seats_available
     }
   } catch (err) {
+    captureError(err, {
+      action: 'update_driver_location',
+      driver_id: driverId.value,
+      lat: nextLat,
+      lng: nextLng,
+    })
     // Ignore GPS update errors for now.
   }
 }
@@ -202,6 +218,7 @@ const startDuty = async () => {
     isOnDuty.value = response.data?.is_on_duty ?? true
     startWatching(handleGpsUpdate)
   } catch (err) {
+    captureError(err, { action: 'start_duty', driver_id: driverId.value })
     error.value = 'Could not go on duty.'
   } finally {
     loading.value = false
@@ -216,6 +233,7 @@ const stopDuty = async () => {
     isOnDuty.value = response.data?.is_on_duty ?? false
     stopWatching()
   } catch (err) {
+    captureError(err, { action: 'stop_duty', driver_id: driverId.value })
     error.value = 'Could not go off duty.'
   } finally {
     loading.value = false
@@ -255,6 +273,11 @@ const handleDropoff = async (passengerId) => {
     await dropoffPassenger(driverId.value, passengerId)
     onboardPassengers.value = onboardPassengers.value.filter((p) => p.id !== passengerId)
   } catch (err) {
+    captureError(err, {
+      action: 'dropoff_passenger',
+      driver_id: driverId.value,
+      passenger_id: passengerId,
+    })
     // Ignore for now.
   }
 }

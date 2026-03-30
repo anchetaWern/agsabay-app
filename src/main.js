@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import * as Sentry from '@sentry/vue'
 import App from './App.vue'
 import store from './store'
 import 'leaflet/dist/leaflet.css'
@@ -13,4 +14,14 @@ L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl })
 
 registerSW({ immediate: true })
 
-createApp(App).use(store).mount('#app')
+const app = createApp(App).use(store)
+
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    app,
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+  })
+}
+
+app.mount('#app')

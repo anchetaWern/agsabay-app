@@ -1,4 +1,5 @@
 import axios from 'axios'
+import * as Sentry from '@sentry/vue'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -14,6 +15,25 @@ api.interceptors.request.use((config) => {
   }
   return config
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (import.meta.env.VITE_SENTRY_DSN) {
+      const { config, response } = error || {}
+      Sentry.captureException(error, {
+        tags: { source: 'api' },
+        extra: {
+          url: config?.url,
+          method: config?.method,
+          status: response?.status,
+          statusText: response?.statusText,
+        },
+      })
+    }
+    return Promise.reject(error)
+  },
+)
 
 export const registerDriver = (plateNumber) =>
   api.post('/api/drivers/register', { plate_number: plateNumber })

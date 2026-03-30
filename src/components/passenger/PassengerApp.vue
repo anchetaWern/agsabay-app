@@ -92,6 +92,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import * as Sentry from '@sentry/vue'
 import L from 'leaflet'
 import { v4 as uuidv4 } from 'uuid'
 import { useGps } from '../../composables/useGps'
@@ -110,6 +111,14 @@ const ttlSeconds = ref(300)
 const nowMs = ref(Date.now())
 
 const { getCurrentPosition } = useGps()
+
+const captureError = (err, context = {}) => {
+  if (!import.meta.env.VITE_SENTRY_DSN) return
+  Sentry.captureException(err, {
+    tags: { source: 'passenger-app' },
+    extra: context,
+  })
+}
 
 let map = null
 let pickupMarker = null
@@ -223,6 +232,7 @@ const useCurrentLocation = async () => {
     setPickup(latlng)
     map.setView(latlng, 16)
   } catch (err) {
+    captureError(err, { action: 'use_current_location' })
     error.value = 'Could not access your GPS.'
   }
 }
@@ -244,6 +254,12 @@ const handleRequestRide = async () => {
     screen.value = 'waiting'
     startTtl()
   } catch (err) {
+    captureError(err, {
+      action: 'request_ride',
+      session_token: sessionToken.value,
+      pickup: pickup.value,
+      destination: destination.value,
+    })
     error.value = 'Unable to request a ride.'
   } finally {
     loading.value = false
@@ -290,6 +306,7 @@ const handleCancel = async () => {
   try {
     await cancelRequest(sessionToken.value)
   } catch (err) {
+    captureError(err, { action: 'cancel_request', session_token: sessionToken.value })
     // Ignore cancel errors.
   }
   screen.value = 'map'
@@ -320,6 +337,11 @@ const handleConfirm = async (match) => {
       ttlTimer = null
     }
   } catch (err) {
+    captureError(err, {
+      action: 'confirm_boarding',
+      session_token: sessionToken.value,
+      driver_id: match?.driver_id,
+    })
     error.value = getApiErrorMessage(
       err,
       'Could not confirm. Are you near the tricycle?',
