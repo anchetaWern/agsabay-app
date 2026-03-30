@@ -75,6 +75,28 @@
         </div>
       </div>
 
+      <div class="card" style="display: grid; gap: 10px;">
+        <div>
+          <p style="margin: 0; color: #6b7280;">Detected location</p>
+          <h3 style="margin: 4px 0 0;">Map preview</h3>
+        </div>
+        <div
+          style="width: 100%; height: 220px; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; background: #f8fafc; display: flex; align-items: center; justify-content: center;"
+        >
+          <iframe
+            v-if="mapEmbedUrl"
+            :src="mapEmbedUrl"
+            style="width: 100%; height: 100%; border: 0;"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+          ></iframe>
+          <p v-else style="margin: 0; color: #6b7280;">Waiting for a GPS fix…</p>
+        </div>
+        <p v-if="lat !== null && lng !== null" style="margin: 0; color: #6b7280;">
+          {{ lat.toFixed(5) }}, {{ lng.toFixed(5) }}
+        </p>
+      </div>
+
       <div
         v-if="nearbyAlert"
         class="card"
@@ -156,6 +178,16 @@ const gpsIndicatorColor = computed(() => {
   if (gpsStatus.value === 'error') return '#f59e0b'
   if (gpsStatus.value === 'acquiring') return '#f59e0b'
   return '#16a34a'
+})
+
+const mapEmbedUrl = computed(() => {
+  if (lat.value === null || lng.value === null) return ''
+  const delta = 0.002
+  const left = lng.value - delta
+  const right = lng.value + delta
+  const top = lat.value + delta
+  const bottom = lat.value - delta
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${lat.value}%2C${lng.value}`
 })
 
 const lastFixDisplay = computed(() => {
