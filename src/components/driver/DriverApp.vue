@@ -1,5 +1,7 @@
 <template>
   <div style="width: 100%; display: flex; flex-direction: column; gap: 16px;">
+    <ToastStack :toasts="toasts" @dismiss="dismissToast" />
+
     <div v-if="!driverId" class="card" style="display: grid; gap: 16px;">
       <div>
         <h2 style="margin: 0 0 8px;">Driver Registration</h2>
@@ -14,7 +16,6 @@
       <button class="btn btn-primary" :disabled="loading" @click="handleRegister">
         {{ loading ? 'Saving...' : 'Continue' }}
       </button>
-      <p v-if="error" style="margin: 0; color: #dc2626;">{{ error }}</p>
     </div>
 
     <template v-else>
@@ -128,6 +129,7 @@ import * as Sentry from '@sentry/vue'
 import { useGps } from '../../composables/useGps'
 import echo from '../../services/echo'
 import { registerDriver, setDriverDuty, updateDriverLocation, dropoffPassenger } from '../../services/api.js'
+import ToastStack from '../common/ToastStack.vue'
 
 const driverId = ref(localStorage.getItem('driver_id'))
 const driverPlate = ref(localStorage.getItem('driver_plate') || '')
@@ -138,6 +140,7 @@ const loading = ref(false)
 const error = ref('')
 const nearbyAlert = ref(null)
 const onboardPassengers = ref([])
+const toasts = ref([])
 
 const captureError = (err, context = {}) => {
   if (!import.meta.env.VITE_SENTRY_DSN) return
@@ -160,6 +163,31 @@ const {
 
 let alertTimeout = null
 let channel = null
+let toastId = 0
+
+const TOAST_DURATION_MS = 5000
+
+const showToast = (message) => {
+  if (!message) return
+  const id = toastId++
+  toasts.value = [...toasts.value, { id, message }]
+  setTimeout(() => {
+    dismissToast(id)
+  }, TOAST_DURATION_MS)
+}
+
+const dismissToast = (id) => {
+  toasts.value = toasts.value.filter((toast) => toast.id !== id)
+}
+
+const setError = (message) => {
+  error.value = message
+  if (message) showToast(message)
+}
+
+const clearError = () => {
+  error.value = ''
+}
 
 const seatsAvailableDisplay = computed(() =>
   seatsAvailable.value === null ? '--' : seatsAvailable.value,
@@ -201,12 +229,12 @@ const forceUppercase = () => {
 
 const handleRegister = async () => {
   if (!plateInput.value) {
-    error.value = 'Plate number is required.'
+    setError('Plate number is required.')
     return
   }
 
   loading.value = true
-  error.value = ''
+  clearError()
   try {
     const response = await registerDriver(plateInput.value)
     const payload = response.data
@@ -216,7 +244,7 @@ const handleRegister = async () => {
     localStorage.setItem('driver_plate', driverPlate.value)
   } catch (err) {
     captureError(err, { action: 'register_driver', plate_number: plateInput.value })
-    error.value = 'Unable to register driver.'
+    setError('Unable to register driver.')
   } finally {
     loading.value = false
   }
@@ -251,7 +279,7 @@ const startDuty = async () => {
     startWatching(handleGpsUpdate)
   } catch (err) {
     captureError(err, { action: 'start_duty', driver_id: driverId.value })
-    error.value = 'Could not go on duty.'
+    setError('Could not go on duty.')
   } finally {
     loading.value = false
   }
@@ -266,7 +294,7 @@ const stopDuty = async () => {
     stopWatching()
   } catch (err) {
     captureError(err, { action: 'stop_duty', driver_id: driverId.value })
-    error.value = 'Could not go off duty.'
+    setError('Could not go off duty.')
   } finally {
     loading.value = false
   }

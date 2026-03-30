@@ -1,5 +1,7 @@
 <template>
   <div style="width: 100%; display: flex; flex-direction: column; gap: 16px;">
+    <ToastStack :toasts="toasts" @dismiss="dismissToast" />
+
     <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
       <div>
         <p style="margin: 0; font-size: 14px; color: #6b7280;">Passenger mode</p>
@@ -26,7 +28,6 @@
         {{ loading ? 'Requesting...' : 'Find a Tricycle' }}
       </button>
       <button class="btn btn-outline" @click="resetAll">Start over</button>
-      <p v-if="error" style="margin: 0; color: #dc2626;">{{ error }}</p>
     </div>
 
     <div v-if="screen === 'waiting'" class="card" style="display: grid; gap: 16px; text-align: center;">
@@ -45,7 +46,6 @@
 
     <div v-if="screen === 'matches'" class="card" style="display: grid; gap: 12px;">
       <h3 style="margin: 0;">Matches</h3>
-      <p v-if="error" style="margin: 0; color: #dc2626;">{{ error }}</p>
       <p v-if="matches.length === 0" style="margin: 0; color: #6b7280;">Waiting for matches...</p>
       <div v-for="match in matches" :key="match.plate_number" class="card match-card" style="box-shadow: none; border: 1px solid #e5e7eb;">
         <div class="match-card__ttl" aria-hidden="true">
@@ -98,6 +98,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { useGps } from '../../composables/useGps'
 import echo from '../../services/echo'
 import { requestRide, cancelRequest, confirmBoarding } from '../../services/api'
+import ToastStack from '../common/ToastStack.vue'
 
 const DRIVER_MATCH_TIMEOUT = 180000; // 180000; // 3 minute
 
@@ -109,6 +110,7 @@ const loading = ref(false)
 const matches = ref([])
 const ttlSeconds = ref(300)
 const nowMs = ref(Date.now())
+const toasts = ref([])
 
 const { getCurrentPosition } = useGps()
 
@@ -127,6 +129,35 @@ let ttlTimer = null
 let matchTtlTimer = null
 let channel = null
 let droppedTimer = null
+let toastId = 0
+
+const TOAST_DURATION_MS = 5000
+
+setTimeout(() => {
+  setError('Could not access your GPS.')
+}, 1000)
+
+const showToast = (message) => {
+  if (!message) return
+  const id = toastId++
+  toasts.value = [...toasts.value, { id, message }]
+  setTimeout(() => {
+    dismissToast(id)
+  }, TOAST_DURATION_MS)
+}
+
+const dismissToast = (id) => {
+  toasts.value = toasts.value.filter((toast) => toast.id !== id)
+}
+
+const setError = (message) => {
+  error.value = message
+  if (message) showToast(message)
+}
+
+const clearError = () => {
+  error.value = ''
+}
 
 const boardedPlate = ref(null)
 
@@ -214,7 +245,7 @@ const fitBoundsIfReady = () => {
 const resetMarkers = () => {
   pickup.value = null
   destination.value = null
-  error.value = ''
+  clearError()
   if (pickupMarker) {
     map.removeLayer(pickupMarker)
     pickupMarker = null
@@ -233,14 +264,14 @@ const useCurrentLocation = async () => {
     map.setView(latlng, 16)
   } catch (err) {
     captureError(err, { action: 'use_current_location' })
-    error.value = 'Could not access your GPS.'
+    setError('Could not access your GPS.')
   }
 }
 
 const handleRequestRide = async () => {
   if (!pickup.value || !destination.value) return
   loading.value = true
-  error.value = ''
+  clearError()
   try {
     handleCancel()
 
@@ -260,7 +291,7 @@ const handleRequestRide = async () => {
       pickup: pickup.value,
       destination: destination.value,
     })
-    error.value = 'Unable to request a ride.'
+    setError('Unable to request a ride.')
   } finally {
     loading.value = false
   }
@@ -319,7 +350,7 @@ const handleCancel = async () => {
 
 const handleConfirm = async (match) => {
   
-  error.value = ''
+  clearError()
   try {
     const position = await getCurrentPosition()
     
@@ -342,10 +373,10 @@ const handleConfirm = async (match) => {
       session_token: sessionToken.value,
       driver_id: match?.driver_id,
     })
-    error.value = getApiErrorMessage(
+    setError(getApiErrorMessage(
       err,
       'Could not confirm. Are you near the tricycle?',
-    )
+    ))
   }
 }
 
@@ -384,7 +415,7 @@ const resetAll = () => {
   screen.value = 'map'
   pickup.value = null
   destination.value = null
-  error.value = ''
+  clearError()
   loading.value = false
   matches.value = []
   ttlSeconds.value = 300
