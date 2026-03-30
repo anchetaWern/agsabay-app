@@ -141,6 +141,7 @@ const error = ref('')
 const nearbyAlert = ref(null)
 const onboardPassengers = ref([])
 const toasts = ref([])
+const audioUnlocked = ref(false)
 
 const captureError = (err, context = {}) => {
   if (!import.meta.env.VITE_SENTRY_DSN) return
@@ -164,6 +165,7 @@ const {
 let alertTimeout = null
 let channel = null
 let toastId = 0
+let audioContext = null
 
 const TOAST_DURATION_MS = 5000
 
@@ -178,6 +180,59 @@ const showToast = (message, type = 'danger') => {
 
 const dismissToast = (id) => {
   toasts.value = toasts.value.filter((toast) => toast.id !== id)
+}
+
+const getAudioContext = () => {
+  if (audioContext) return audioContext
+  const AudioCtx = window.AudioContext || window.webkitAudioContext
+  if (!AudioCtx) return null
+  audioContext = new AudioCtx()
+  return audioContext
+}
+
+const unlockAudio = async () => {
+  const ctx = getAudioContext()
+  if (!ctx) return false
+  if (ctx.state === 'running') {
+    audioUnlocked.value = true
+    return true
+  }
+  try {
+    await ctx.resume()
+    audioUnlocked.value = ctx.state === 'running'
+    return audioUnlocked.value
+  } catch (err) {
+    console.warn('Audio unlock blocked by browser policy.', err)
+    showToast('Audio alerts blocked by browser. Tap again to enable.', 'info')
+    return false
+  }
+}
+
+const playBeep = () => {
+  if (!audioUnlocked.value) return
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  const oscillator = ctx.createOscillator()
+  const gainNode = ctx.createGain()
+  const now = ctx.currentTime
+
+  oscillator.type = 'sine'
+  oscillator.frequency.setValueAtTime(880, now)
+  gainNode.gain.setValueAtTime(0.0001, now)
+  gainNode.gain.linearRampToValueAtTime(0.2, now + 0.01)
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.16)
+
+  oscillator.connect(gainNode)
+  gainNode.connect(ctx.destination)
+
+  oscillator.start(now)
+  oscillator.stop(now + 0.17)
+
+  oscillator.onended = () => {
+    oscillator.disconnect()
+    gainNode.disconnect()
+  }
 }
 
 const setError = (message) => {
@@ -309,6 +364,7 @@ const toggleDuty = () => {
   if (isOnDuty.value) {
     stopDuty()
   } else {
+    unlockAudio()
     startDuty()
   }
 }
@@ -350,6 +406,8 @@ const setupChannel = () => {
   // Echo's listen() adds a dot prefix which doesn't match our direct Pusher events
   channel.subscription.bind('passenger.nearby', (payload) => {
     showNearbyAlert(payload)
+    playBeep()
+    if (navigator.vibrate) navigator.vibrate(150)
     if (payload?.dest_label) {
       showToast(`Passenger nearby — going to ${payload.dest_label}`, 'info')
     } else {
