@@ -133,10 +133,6 @@ let toastId = 0
 
 const TOAST_DURATION_MS = 5000
 
-setTimeout(() => {
-  setError('Could not access your GPS.')
-}, 1000)
-
 const showToast = (message) => {
   if (!message) return
   const id = toastId++
