@@ -21,10 +21,14 @@ api.interceptors.response.use(
   (error) => {
     if (import.meta.env.VITE_SENTRY_DSN) {
       const { config, response } = error || {}
+      const url = config?.url || ''
+      if (url.includes('/api/passengers/request')) {
+        return Promise.reject(error)
+      }
       Sentry.captureException(error, {
         tags: { source: 'api' },
         extra: {
-          url: config?.url,
+          url,
           method: config?.method,
           status: response?.status,
           statusText: response?.statusText,
