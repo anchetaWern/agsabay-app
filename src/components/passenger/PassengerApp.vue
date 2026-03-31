@@ -96,6 +96,7 @@ import * as Sentry from '@sentry/vue'
 import L from 'leaflet'
 import { v4 as uuidv4 } from 'uuid'
 import { useGps } from '../../composables/useGps'
+import { useAlertSound } from '../../composables/useAlertSound'
 import echo from '../../services/echo'
 import { requestRide, cancelRequest, confirmBoarding } from '../../services/api'
 import ToastStack from '../common/ToastStack.vue'
@@ -113,6 +114,7 @@ const nowMs = ref(Date.now())
 const toasts = ref([])
 
 const { getCurrentPosition } = useGps()
+const { unlockAudio, playBell } = useAlertSound()
 
 const captureError = (err, context = {}) => {
   if (!import.meta.env.VITE_SENTRY_DSN) return
@@ -144,6 +146,13 @@ const showToast = (message, type = 'danger') => {
 
 const dismissToast = (id) => {
   toasts.value = toasts.value.filter((toast) => toast.id !== id)
+}
+
+const handleAudioUnlock = async () => {
+  const ok = await unlockAudio()
+  if (!ok) {
+    showToast('Audio alerts blocked by browser. Tap again to enable.', 'info')
+  }
 }
 
 const setError = (message) => {
@@ -269,6 +278,7 @@ const handleRequestRide = async () => {
   loading.value = true
   clearError()
   try {
+    await handleAudioUnlock()
     handleCancel()
 
     await requestRide({
@@ -449,6 +459,8 @@ const setupChannel = () => {
       } else {
         showToast('New match found', 'info')
       }
+      playBell()
+      if (navigator.vibrate) navigator.vibrate(150)
       if (!matchTtlTimer) {
         startMatchTtl()
       }
