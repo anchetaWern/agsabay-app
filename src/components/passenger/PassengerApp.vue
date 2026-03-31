@@ -44,9 +44,9 @@
       <button class="btn btn-danger" @click="handleCancel">Cancel</button>
     </div>
 
-    <div v-if="screen === 'matches'" class="card" style="display: grid; gap: 12px;">
+    <div v-if="screen === 'waiting'" class="card" style="display: grid; gap: 12px;">
       <h3 style="margin: 0;">Matches</h3>
-      <p v-if="matches.length === 0" style="margin: 0; color: #6b7280;">Waiting for matches...</p>
+      <p v-if="matches.length === 0" style="margin: 0; color: #6b7280;">No matches yet. Keep waiting...</p>
       <div v-for="match in matches" :key="match.plate_number" class="card match-card" style="box-shadow: none; border: 1px solid #e5e7eb;">
         <div class="match-card__ttl" aria-hidden="true">
           <svg class="ttl-ring" viewBox="0 0 36 36">
@@ -456,19 +456,15 @@ const setupChannel = () => {
       // Auto-remove this match after 30 seconds if not boarded
       setTimeout(() => {
         matches.value = matches.value.filter(m => m.plate_number !== payload.plate_number)
-        // If no matches left, go back to waiting screen
-        if (matches.value.length === 0 && screen.value === 'matches') {
-          screen.value = 'waiting'
-          startTtl()  // restart the TTL countdown
+        // If no matches left, ensure TTL is running while waiting
+        if (matches.value.length === 0 && screen.value === 'waiting') {
+          startTtl()
         }
         if (matches.value.length === 0 && matchTtlTimer) {
           clearInterval(matchTtlTimer)
           matchTtlTimer = null
         }
       }, DRIVER_MATCH_TIMEOUT)
-    }
-    if (screen.value !== 'onboard') {
-      screen.value = 'matches'
     }
   })
 
