@@ -48,17 +48,20 @@
       <h3 style="margin: 0;">Matches</h3>
       <p v-if="matches.length === 0" style="margin: 0; color: #6b7280;">No matches yet. Keep waiting...</p>
       <div v-for="match in matches" :key="match.plate_number" class="card match-card" style="box-shadow: none; border: 1px solid #e5e7eb;">
-        <div class="match-card__ttl" aria-hidden="true">
-          <svg class="ttl-ring" viewBox="0 0 36 36">
-            <circle class="ttl-ring__bg" cx="18" cy="18" r="15.5" />
-            <circle
-              class="ttl-ring__fg"
-              cx="18"
-              cy="18"
-              r="15.5"
-              :style="getMatchRingStyle(match)"
-            />
-          </svg>
+        <div class="match-card__meta">
+          <span class="match-card__time">{{ getMatchLocalTime(match) }}</span>
+          <div class="match-card__ttl" aria-hidden="true">
+            <svg class="ttl-ring" viewBox="0 0 36 36">
+              <circle class="ttl-ring__bg" cx="18" cy="18" r="15.5" />
+              <circle
+                class="ttl-ring__fg"
+                cx="18"
+                cy="18"
+                r="15.5"
+                :style="getMatchRingStyle(match)"
+              />
+            </svg>
+          </div>
         </div>
         <h4 style="margin: 0 0 8px;">{{ match.plate_number }}</h4>
         <p style="margin: 0 0 12px; color: #6b7280;">Seats available: {{ match.seats_available }}</p>
@@ -335,6 +338,15 @@ const getMatchRingStyle = (match) => {
   }
 }
 
+const getMatchLocalTime = (match) => {
+  if (!match?.foundAt) return ''
+  return new Date(match.foundAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 const handleCancel = async () => {
   try {
     await cancelRequest(sessionToken.value)
@@ -445,6 +457,7 @@ const setupChannel = () => {
     if (!exists) {
       matches.value.push({
         ...payload,
+        foundAt: payload?.matched_at || Date.now(),
         expiresAt: Date.now() + DRIVER_MATCH_TIMEOUT,
       })
       if (payload?.plate_number) {
@@ -549,10 +562,26 @@ watch(screen, async (next) => {
   position: relative;
 }
 
-.match-card__ttl {
+.match-card__meta {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.match-card__time {
+  font-size: 11px;
+  color: #6b7280;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+}
+
+.match-card__ttl {
   width: 26px;
   height: 26px;
   pointer-events: none;
