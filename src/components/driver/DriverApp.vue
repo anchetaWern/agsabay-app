@@ -105,7 +105,7 @@
         class="card"
         style="background: #eff6ff; border: 1px solid #bfdbfe; display: grid; gap: 8px;"
       >
-        <strong>Passenger nearby — going to {{ nearbyAlert.destLabel }}</strong>
+        <strong>Passenger nearby!</strong>
         <p style="margin: 0; color: #1e3a8a;">This alert will auto-dismiss.</p>
       </div>
 
