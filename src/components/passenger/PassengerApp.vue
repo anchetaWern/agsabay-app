@@ -166,13 +166,6 @@ const clearError = () => {
 
 const boardedPlate = ref(null)
 
-setTimeout(() => {
-  console.log('Trying test subscription...')
-  window.Echo.channel('debug-channel')
-    .subscribed(() => console.log('Subscribed to debug-channel'))
-    .error((err) => console.error('Channel error:', err))
-}, 1000)
-
 const sessionToken = ref(localStorage.getItem('pax_session') || uuidv4())
 if (!localStorage.getItem('pax_session')) {
   localStorage.setItem('pax_session', sessionToken.value)
@@ -199,6 +192,9 @@ const initMap = () => {
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
+    updateWhenIdle: true,
+    updateWhenZooming: false,
+    keepBuffer: 1,
   }).addTo(map)
 
   map.on('click', (event) => {

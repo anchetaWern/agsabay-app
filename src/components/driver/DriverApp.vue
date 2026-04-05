@@ -89,6 +89,8 @@
             :src="mapEmbedUrl"
             style="width: 100%; height: 100%; border: 0;"
             loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             referrerpolicy="no-referrer-when-downgrade"
           ></iframe>
           <p v-else style="margin: 0; color: #6b7280;">Waiting for a GPS fix…</p>
@@ -132,6 +134,17 @@ import echo from '../../services/echo'
 import { registerDriver, setDriverDuty, updateDriverLocation, dropoffPassenger } from '../../services/api.js'
 import ToastStack from '../common/ToastStack.vue'
 
+const envNumber = (key, fallback) => {
+  const raw = import.meta.env[key]
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : fallback
+}
+
+const MIN_INTERVAL_MS = envNumber('VITE_DRIVER_LOCATION_MIN_INTERVAL_MS', 8000)
+const MIN_DISTANCE_M = envNumber('VITE_DRIVER_LOCATION_MIN_DISTANCE_M', 20)
+const MAX_ACCURACY_M = envNumber('VITE_DRIVER_LOCATION_MAX_ACCURACY_M', 50)
+const MAX_STALE_MS = envNumber('VITE_DRIVER_LOCATION_MAX_STALE_MS', 30000)
+
 const driverId = ref(localStorage.getItem('driver_id'))
 const driverPlate = ref(localStorage.getItem('driver_plate') || '')
 const plateInput = ref(driverPlate.value)
@@ -166,6 +179,8 @@ const {
 let alertTimeout = null
 let channel = null
 let toastId = 0
+let lastSentAt = 0
+let lastSentLatLng = null
 
 const TOAST_DURATION_MS = 5000
 
@@ -217,14 +232,17 @@ const gpsIndicatorColor = computed(() => {
   return '#16a34a'
 })
 
+const mapLat = ref(null)
+const mapLng = ref(null)
+
 const mapEmbedUrl = computed(() => {
-  if (lat.value === null || lng.value === null) return ''
+  if (mapLat.value === null || mapLng.value === null) return ''
   const delta = 0.002
-  const left = lng.value - delta
-  const right = lng.value + delta
-  const top = lat.value + delta
-  const bottom = lat.value - delta
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${lat.value}%2C${lng.value}`
+  const left = mapLng.value - delta
+  const right = mapLng.value + delta
+  const top = mapLat.value + delta
+  const bottom = mapLat.value - delta
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${mapLat.value}%2C${mapLng.value}`
 })
 
 const lastFixDisplay = computed(() => {
@@ -259,15 +277,52 @@ const handleRegister = async () => {
   }
 }
 
+const toRadians = (value) => (value * Math.PI) / 180
+
+const distanceMeters = (lat1, lng1, lat2, lng2) => {
+  const earthRadius = 6371000
+  const dLat = toRadians(lat2 - lat1)
+  const dLng = toRadians(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return earthRadius * c
+}
+
 const handleGpsUpdate = async ({ lat: nextLat, lng: nextLng }) => {
   if (!isOnDuty.value) return
   if (gpsStatus.value !== 'active') return
   if (!driverId.value) return
+  if (mapLat.value === null || mapLng.value === null) {
+    mapLat.value = nextLat
+    mapLng.value = nextLng
+  }
+  const now = Date.now()
+  const shouldForce = lastSentAt === 0 || now - lastSentAt >= MAX_STALE_MS
+  if (!shouldForce) {
+    if (now - lastSentAt < MIN_INTERVAL_MS) return
+    if (accuracy.value !== null && accuracy.value > MAX_ACCURACY_M) return
+    if (lastSentLatLng) {
+      const moved = distanceMeters(
+        lastSentLatLng.lat,
+        lastSentLatLng.lng,
+        nextLat,
+        nextLng,
+      )
+      if (moved < MIN_DISTANCE_M) return
+    }
+  }
   try {
     const response = await updateDriverLocation(driverId.value, nextLat, nextLng)
     if (response.data && typeof response.data.seats_available !== 'undefined') {
       seatsAvailable.value = response.data.seats_available
     }
+    lastSentAt = now
+    lastSentLatLng = { lat: nextLat, lng: nextLng }
   } catch (err) {
     captureError(err, {
       action: 'update_driver_location',
@@ -285,6 +340,10 @@ const startDuty = async () => {
   try {
     const response = await setDriverDuty(driverId.value, true)
     isOnDuty.value = response.data?.is_on_duty ?? true
+    lastSentAt = 0
+    lastSentLatLng = null
+    mapLat.value = null
+    mapLng.value = null
     startWatching(handleGpsUpdate)
   } catch (err) {
     captureError(err, { action: 'start_duty', driver_id: driverId.value })
@@ -301,6 +360,10 @@ const stopDuty = async () => {
     const response = await setDriverDuty(driverId.value, false)
     isOnDuty.value = response.data?.is_on_duty ?? false
     stopWatching()
+    lastSentAt = 0
+    lastSentLatLng = null
+    mapLat.value = null
+    mapLng.value = null
   } catch (err) {
     captureError(err, { action: 'stop_duty', driver_id: driverId.value })
     setError('Could not go off duty.')
@@ -356,8 +419,6 @@ const setupChannel = () => {
   if (!driverId.value) return
   channel = echo.channel(`driver.${driverId.value}`)
 
-  // Use raw Pusher bind instead of Echo's listen
-  // Echo's listen() adds a dot prefix which doesn't match our direct Pusher events
   channel.subscription.bind('passenger.nearby', (payload) => {
     showNearbyAlert(payload)
     playBell()
@@ -388,6 +449,10 @@ const setupChannel = () => {
       p => p.id !== payload.passenger_id
     )
     seatsAvailable.value = payload.seats_available
+    if (lat.value !== null && lng.value !== null) {
+      mapLat.value = lat.value
+      mapLng.value = lng.value
+    }
     const destLabel = payload?.dest_label ? ` — ${payload.dest_label}` : ''
     showToast(`Passenger #${payload.passenger_id} dropped off${destLabel}`, 'info')
   })
