@@ -363,7 +363,7 @@ const setupChannel = () => {
     playBell()
     if (navigator.vibrate) navigator.vibrate(150)
     if (payload?.dest_label) {
-      showToast(`Passenger nearby — going to ${payload.dest_label}`, 'info')
+      showToast(`Passenger nearby`, 'info')
     } else {
       showToast('Passenger nearby', 'info')
     }
