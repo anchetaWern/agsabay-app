@@ -195,7 +195,7 @@ const getApiErrorMessage = (err, fallback) => {
 }
 
 const initMap = () => {
-  map = L.map('map').setView([16.6150981, 120.3140831], 15)
+  map = L.map('map').setView([16.615893, 120.316668], 15)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',

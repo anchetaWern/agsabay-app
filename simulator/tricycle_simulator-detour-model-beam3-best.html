@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tricycle Carpool Simulator</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f0eb; color: #1a1a1a; }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+  #toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; background: #fff; border-bottom: 1px solid #e0dfd8; flex-wrap: wrap; }
+  #toolbar h1 { font-size: 15px; font-weight: 600; margin-right: 8px; color: #1a1a1a; }
+  .tbtn { padding: 6px 14px; font-size: 13px; border-radius: 8px; border: 1px solid #d0cfc8; background: #fff; color: #333; cursor: pointer; transition: all 0.15s; }
+  .tbtn:hover { background: #f5f4f0; }
+  .tbtn.active { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .tbtn.danger { border-color: #e74c3c; color: #e74c3c; }
+  .tbtn.danger:hover { background: #fdf0ef; }
+  #hint { font-size: 12px; color: #666; margin-left: auto; font-style: italic; }
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #map { flex: 1; height: 100%; }
+  #sidebar { width: 280px; background: #fff; border-left: 1px solid #e0dfd8; display: flex; flex-direction: column; overflow: hidden; }
+  #stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #e0dfd8; border-bottom: 1px solid #e0dfd8; }
+  .stat { background: #fff; padding: 12px 14px; text-align: center; }
+  .stat .val { font-size: 24px; font-weight: 600; color: #1a1a1a; }
+  .stat .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+  .stat .val.green { color: #16a34a; }
+  .stat .val.blue { color: #1a56db; }
+  .stat .val.orange { color: #d97706; }
+  #pax-scroll { flex: 1; overflow-y: auto; padding: 10px; }
+  #pax-scroll h2 { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .pcard { border-radius: 8px; border: 1px solid #e0dfd8; padding: 10px 12px; margin-bottom: 6px; background: #fafaf8; font-size: 13px; }
+  .pcard .pname { font-weight: 600; margin-bottom: 4px; }
+  .pcard .pstatus { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+  .pcard.waiting .pstatus { background: #f0f0eb; color: #666; }
+  .pcard.nearby { border-color: #16a34a; background: #f0fdf4; }
+  .pcard.nearby .pstatus { background: #16a34a; color: #fff; }
+  .pcard.matched { border-color: #1a56db; background: #eff6ff; }
+  .pcard.matched .pstatus { background: #1a56db; color: #fff; }
+  .pcard.onboard { border-color: #d97706; background: #fffbeb; }
+  .pcard.onboard .pstatus { background: #d97706; color: #fff; }
+  .pcard.dropped { opacity: 0.4; }
+  .pcard.dropped .pstatus { background: #ccc; color: #fff; }
+  #driver-state { padding: 10px 14px; border-top: 1px solid #e0dfd8; font-size: 12px; color: #555; background: #fafaf8; line-height: 1.8; }
+  #driver-state strong { color: #1a1a1a; }
+  .coord { font-family: 'Courier New', monospace; font-size: 11px; color: #444; background: #f0f0eb; padding: 1px 5px; border-radius: 4px; }
+
+  /* Alert overlay */
+  #alert-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; }
+  #alert-overlay.show { display: flex; }
+  #alert-box { background: #fff; border-radius: 14px; padding: 24px; width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+  #alert-box h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  #alert-box p { font-size: 13px; color: #555; margin-bottom: 18px; line-height: 1.5; }
+  .alert-btns { display: flex; gap: 10px; }
+  .alert-btns button { flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; }
+  #alert-yes { background: #1a56db; color: #fff; }
+  #alert-yes:hover { background: #1648c0; }
+  #alert-no { background: #f0f0eb; color: #333; }
+  #alert-no:hover { background: #e5e4df; }
+
+  .leaflet-container { font-family: 'Segoe UI', sans-serif; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <h1>🛺 Tricycle Carpool Simulator</h1>
+    <button class="tbtn active" id="bDriver">Move driver</button>
+    <button class="tbtn" id="bPax">Add passenger</button>
+    <button class="tbtn danger" id="bReset">Reset</button>
+    <span id="hint">Click map to place/move the driver</span>
+  </div>
+  <div id="main">
+    <div id="map"></div>
+    <div id="sidebar">
+      <div id="stats">
+        <div class="stat"><div class="val green" id="sSeats">3</div><div class="lbl">Seats free</div></div>
+        <div class="stat"><div class="val blue" id="sNotified">0</div><div class="lbl">Notified</div></div>
+        <div class="stat"><div class="val orange" id="sOnboard">0</div><div class="lbl">Onboard</div></div>
+        <div class="stat"><div class="val" id="sDist">—</div><div class="lbl">To dropoff</div></div>
+      </div>
+      <div id="pax-scroll">
+        <h2>Passengers</h2>
+        <div id="plist"><p style="font-size:13px;color:#aaa;">No passengers yet. Switch to "Add passenger" and click the map.</p></div>
+      </div>
+      <div id="driver-state">
+        State: <strong id="dstate">Not placed</strong><br>
+        Lat: <span class="coord" id="dLat">—</span>
+        Lng: <span class="coord" id="dLng">—</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Alert overlay -->
+<div id="alert-overlay">
+  <div id="alert-box">
+    <h3 id="alert-title">Driver nearby!</h3>
+    <p id="alert-body">A tricycle is heading your way. Do you want to board?</p>
+    <div class="alert-btns">
+      <button id="alert-yes">Yes, board</button>
+      <button id="alert-no">No thanks</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const MAX_SEATS     = 3;
+const CONFIRM_M     = 50;    // metres — boarding confirmation radius
+const DROPOFF_M     = 5;     // metres — auto-dropoff trigger
+const MAX_DETOUR_M  = 150;   // metres — max extra distance added to driver's trip
+const BEAM_LENGTH   = 300;   // metres — how far ahead the notification beam reaches
+const BEAM_WIDTH    = 30;    // metres each side — absorbs GPS noise + road width
+
+let mode = 'driver';
+let paxStep = 0;
+let pendingPickup = null;
+let passengers = [];
+let driverPos = null;
+let prevPos = null;       // previous driver position — used to compute heading
+let seats = MAX_SEATS;
+let paxN = 0;
+let alertQueue = [];
+let alertActive = false;
+
+const map = L.map('map').setView([16.615893, 120.316668], 23);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+const driverIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:32px;height:32px;background:#1a56db;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.3)">D</div>`,
+  iconSize: [32,32], iconAnchor: [16,16]
+});
+
+function pickupIcon(n) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:26px;height:26px;background:#16a34a;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,0.25)">${n}P</div>`,
+    iconSize: [26,26], iconAnchor: [13,13]
+  });
+}
+
+function dropoffIcon(n) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:26px;height:26px;background:#e74c3c;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,0.25)">${n}D</div>`,
+    iconSize: [26,26], iconAnchor: [13,13]
+  });
+}
+
+function haversine(a, b) {
+  const R = 6371000;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+function detourDistance(driver, candidateDest, furthestDest) {
+  // Extra driving cost of adding a stop at candidateDest before furthestDest
+  return haversine(driver, candidateDest)
+       + haversine(candidateDest, furthestDest)
+       - haversine(driver, furthestDest);
+}
+
+// Nearest dest = who exits next (used for auto-dropoff and visual corridor)
+function getActiveDest() {
+  const ob = passengers.filter(p => p.status === 'onboard');
+  if (!ob.length) return null;
+  if (!driverPos) return ob[0].drop;
+  ob.sort((a, b) => haversine(driverPos, a.drop) - haversine(driverPos, b.drop));
+  return ob[0].drop;
+}
+
+// Furthest dest = last stop of the trip (used as detour endpoint)
+function getFurthestDest(candidateDrop) {
+  const onboardDests = passengers
+    .filter(p => p.status === 'onboard')
+    .map(p => p.drop);
+  const allDests = candidateDrop ? [...onboardDests, candidateDrop] : onboardDests;
+  if (!allDests.length || !driverPos) return candidateDrop;
+  allDests.sort((a, b) => haversine(driverPos, b) - haversine(driverPos, a));
+  return allDests[0];
+}
+
+// Heading vector: always based on actual travel direction (prev → current GPS)
+// Falls back to driver → active dest when no prevPos yet (first placement)
+function getBeamDir() {
+  const from = prevPos || (getActiveDest() ? null : null);
+  const to   = driverPos;
+  if (!from || !to) {
+    // No prev position yet — use driver→dest as fallback only if en route
+    const dest = getActiveDest();
+    if (!dest) return null;
+    const c = Math.cos(driverPos.lat * Math.PI / 180);
+    const x = (dest.lng - driverPos.lng)*c*111320;
+    const y = (dest.lat - driverPos.lat)*111320;
+    const len = Math.sqrt(x*x+y*y);
+    return len < 1 ? null : { x: x/len, y: y/len };
+  }
+  const c = Math.cos(to.lat * Math.PI / 180);
+  const x = (to.lng - from.lng)*c*111320;
+  const y = (to.lat - from.lat)*111320;
+  const len = Math.sqrt(x*x+y*y);
+  return len < 1 ? null : { x: x/len, y: y/len };
+}
+
+// Check if a point falls within the forward beam
+function inBeam(point) {
+  const dir = getBeamDir();
+  if (!dir) return false; // no heading yet — fall back gracefully
+  const c = Math.cos(driverPos.lat * Math.PI / 180);
+  const px = (point.lng - driverPos.lng)*c*111320;
+  const py = (point.lat - driverPos.lat)*111320;
+  const along   =  px*dir.x + py*dir.y;
+  const lateral = -px*dir.y + py*dir.x;
+  return along > 0 && along <= BEAM_LENGTH && Math.abs(lateral) <= BEAM_WIDTH;
+}
+
+let driverMarker = null;
+let beamPoly = null;
+let corridorPoly = null;
+let corridorLine = null;
+
+function updateVisuals() {
+  if (!driverPos) return;
+  if (driverMarker) driverMarker.setLatLng(driverPos);
+  else driverMarker = L.marker(driverPos, {icon: driverIcon, zIndexOffset: 2000}).addTo(map);
+
+  const dest = getActiveDest();
+  const dir  = getBeamDir();
+
+  // Draw beam polygon
+  if (dir) {
+    const c = Math.cos(driverPos.lat * Math.PI / 180);
+    // Perpendicular unit vector
+    const px = -dir.y, py = dir.x;
+    function offset(along, lateral) {
+      return [
+        driverPos.lat + (dir.y*along + py*lateral)/111320,
+        driverPos.lng + (dir.x*along + px*lateral)/(c*111320)
+      ];
+    }
+    const poly = [
+      offset(0, -BEAM_WIDTH), offset(BEAM_LENGTH, -BEAM_WIDTH),
+      offset(BEAM_LENGTH,  BEAM_WIDTH), offset(0,  BEAM_WIDTH)
+    ];
+    if (beamPoly) beamPoly.setLatLngs(poly);
+    else beamPoly = L.polygon(poly, {color:'#1a56db', fillColor:'#1a56db', fillOpacity:0.06, weight:1, dashArray:'4 4'}).addTo(map);
+    if (beamPoly) beamPoly.setStyle({opacity:1, fillOpacity:0.06});
+  } else {
+    if (beamPoly) beamPoly.setStyle({opacity:0, fillOpacity:0});
+  }
+
+  if (!dest) {
+    if (corridorLine) { map.removeLayer(corridorLine); corridorLine = null; }
+    if (corridorPoly) { map.removeLayer(corridorPoly); corridorPoly = null; }
+  } else {
+
+    if (corridorLine) corridorLine.setLatLngs([driverPos, dest]);
+    else corridorLine = L.polyline([driverPos, dest], {color:'#1a56db', weight:2.5, opacity:0.8}).addTo(map);
+
+    const cosLat = Math.cos((driverPos.lat+dest.lat)/2*Math.PI/180);
+    const dx = (dest.lat-driverPos.lat)*111320;
+    const dy = (dest.lng-driverPos.lng)*cosLat*111320;
+    const len = Math.sqrt(dx*dx+dy*dy)||1;
+    const buf = BEAM_WIDTH;
+    const pLat = (-dy/len)*buf/111320;
+    const pLng = (dx/len)*buf/(cosLat*111320);
+    const poly = [
+      [driverPos.lat+pLat, driverPos.lng+pLng],
+      [dest.lat+pLat, dest.lng+pLng],
+      [dest.lat-pLat, dest.lng-pLng],
+      [driverPos.lat-pLat, driverPos.lng-pLng]
+    ];
+    if (corridorPoly) corridorPoly.setLatLngs(poly);
+    else corridorPoly = L.polygon(poly, {color:'#d97706', fillColor:'#d97706', fillOpacity:0.12, weight:1.2, dashArray:'6 4'}).addTo(map);
+  }
+}
+
+function showAlert(pax, onYes, onNo) {
+  alertQueue.push({pax, onYes, onNo});
+  if (!alertActive) processAlertQueue();
+}
+
+function processAlertQueue() {
+  if (!alertQueue.length) { alertActive = false; return; }
+  alertActive = true;
+  const {pax, onYes, onNo} = alertQueue.shift();
+  const overlay = document.getElementById('alert-overlay');
+  document.getElementById('alert-title').textContent = `Passenger ${pax.n} — Driver nearby!`;
+  document.getElementById('alert-body').textContent = `A tricycle (${seats} seat${seats!==1?'s':''} available) is within range. Do you want to board?`;
+  overlay.classList.add('show');
+
+  function cleanup() { overlay.classList.remove('show'); processAlertQueue(); }
+  document.getElementById('alert-yes').onclick = () => { onYes(); cleanup(); };
+  document.getElementById('alert-no').onclick = () => { onNo(); cleanup(); };
+}
+
+function runMatch() {
+  if (!driverPos) return;
+
+  // Pass 1: auto-dropoff for onboard passengers
+  passengers.forEach(p => {
+    if (p.status !== 'onboard') return;
+    if (haversine(driverPos, p.drop) <= DROPOFF_M) {
+      p.status = 'dropped';
+      seats = Math.min(MAX_SEATS, seats + 1);
+      if (p.dropMarker) p.dropMarker.setOpacity(0.3);
+      if (p.pickMarker) p.pickMarker.setOpacity(0.3);
+    }
+  });
+
+  // Pass 2: auto-confirm boarding for alerting passengers within CONFIRM_M
+  // Must run BEFORE alertActive guard so confirmation isn't blocked
+  passengers.forEach(p => {
+    if (p.status !== 'alerting') return;
+    if (haversine(driverPos, p.pick) <= CONFIRM_M && seats > 0) {
+      p.status = 'onboard';
+      p.boardedAt = Date.now();
+      seats--;
+      alertActive = false; // clear alert since passenger is now onboard
+    }
+  });
+
+  if (alertActive) { updateVisuals(); renderUI(); return; }
+  if (seats <= 0)  { updateVisuals(); renderUI(); return; }
+
+  const dest = getActiveDest();
+
+  // Pass 3: find new candidates inside the beam
+  const candidates = [];
+  passengers.forEach(p => {
+    if (p.status !== 'waiting') return;
+    if (!inBeam(p.pick)) return;
+
+    const pickDist = haversine(driverPos, p.pick);
+
+    if (!dest) {
+      candidates.push({ p, pickDist });
+    } else {
+      const furthest = getFurthestDest(p.drop);
+      const detour   = detourDistance(driverPos, p.drop, furthest);
+      if (detour <= MAX_DETOUR_M) {
+        candidates.push({ p, pickDist, detour });
+      }
+    }
+  });
+
+  // Alert only the nearest qualifying passenger
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => a.pickDist - b.pickDist);
+    const { p } = candidates[0];
+    p.status = 'alerting';
+    showAlert(p, () => {
+      // Passenger said yes — boarding confirms automatically when driver reaches CONFIRM_M
+      updateVisuals(); renderUI();
+    }, () => {
+      p.status = 'declined';
+      updateVisuals(); renderUI();
+    });
+  }
+
+  updateVisuals();
+  renderUI();
+}
+
+function renderUI() {
+  document.getElementById('sSeats').textContent = seats;
+  document.getElementById('sNotified').textContent = passengers.filter(p => p.status==='nearby'||p.status==='matched'||p.status==='alerting').length;
+  document.getElementById('sOnboard').textContent = passengers.filter(p => p.status==='onboard').length;
+  const dest = getActiveDest();
+  if (dest && driverPos) {
+    const d = haversine(driverPos, dest);
+    document.getElementById('sDist').textContent = d < 1000 ? Math.round(d)+'m' : (d/1000).toFixed(1)+'km';
+  } else {
+    document.getElementById('sDist').textContent = '—';
+  }
+
+  const dstate = !driverPos ? 'Not placed' : getActiveDest() ? 'En route' : 'Roaming';
+  document.getElementById('dstate').textContent = dstate;
+  document.getElementById('dLat').textContent = driverPos ? driverPos.lat.toFixed(6) : '—';
+  document.getElementById('dLng').textContent = driverPos ? driverPos.lng.toFixed(6) : '—';
+
+  const labels = {waiting:'Waiting', nearby:'Nearby', matched:'Matched', alerting:'Alert sent', onboard:'Onboard', dropped:'Dropped off', declined:'Declined'};
+  const activeDest = getActiveDest();
+  const list = passengers.map((p) => {
+    let debugHtml = '';
+    if (driverPos && p.status !== 'dropped' && p.status !== 'declined' && p.status !== 'onboard') {
+      const beam  = inBeam(p.pick);
+      const pickDist = haversine(driverPos, p.pick);
+      if (!activeDest) {
+        debugHtml = `<div style="margin-top:5px;font-size:11px;line-height:1.9;">
+          R1 beam: <b style="color:${beam?'#16a34a':'#e74c3c'}">${beam?'in beam ✓':'outside beam ✗'}</b>
+          <span style="color:#aaa;">(${Math.round(pickDist)}m away, roaming)</span>
+        </div>`;
+      } else {
+        const furthest = getFurthestDest(p.drop);
+        const detour = detourDistance(driverPos, p.drop, furthest);
+        const r2 = detour <= MAX_DETOUR_M;
+        debugHtml = `<div style="margin-top:5px;font-size:11px;line-height:1.9;">
+          R1 beam: <b style="color:${beam?'#16a34a':'#e74c3c'}">${beam?'in beam ✓':'outside beam ✗'}</b>
+          <span style="color:#aaa;">(${Math.round(pickDist)}m away)</span><br>
+          R2 detour: <b style="color:${r2?'#16a34a':'#e74c3c'}">${Math.round(detour)}m extra ${r2?'✓':'✗'}</b>
+        </div>`;
+      }
+    }
+    return `<div class="pcard ${p.status}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="pname">Passenger ${p.n}</span>
+        <span class="pstatus">${labels[p.status]||p.status}</span>
+      </div>
+      <div style="margin-top:5px;font-size:11px;color:#666;line-height:1.9;">
+        <span style="color:#16a34a;font-weight:700;">P</span>
+        <span class="coord">${p.pick.lat.toFixed(6)}</span>
+        <span class="coord">${p.pick.lng.toFixed(6)}</span><br>
+        <span style="color:#e74c3c;font-weight:700;">D</span>
+        <span class="coord">${p.drop.lat.toFixed(6)}</span>
+        <span class="coord">${p.drop.lng.toFixed(6)}</span>
+      </div>
+      ${debugHtml}
+    </div>`;
+  }).join('');
+  document.getElementById('plist').innerHTML = list || '<p style="font-size:13px;color:#aaa;">No passengers yet.</p>';
+}
+
+map.on('click', e => {
+  if (mode === 'driver') {
+    prevPos = driverPos;   // store previous position for heading calculation
+    driverPos = e.latlng;
+    runMatch();
+  } else {
+    if (paxStep === 0) {
+      paxN++;
+      pendingPickup = e.latlng;
+      const m = L.marker(e.latlng, {icon: pickupIcon(paxN)}).addTo(map)
+        .bindTooltip(`P${paxN} pickup`, {permanent:true, direction:'top', offset:[0,-10]});
+      pendingPickup._marker = m;
+      paxStep = 1;
+      document.getElementById('hint').textContent = `P${paxN}: now click the dropoff point`;
+    } else {
+      const dropLL = e.latlng;
+      const dropM = L.marker(dropLL, {icon: dropoffIcon(paxN)}).addTo(map)
+        .bindTooltip(`P${paxN} dropoff`, {permanent:true, direction:'top', offset:[0,-10]});
+      L.polyline([pendingPickup, dropLL], {color:'#e74c3c', weight:1.5, dashArray:'4 4', opacity:0.5}).addTo(map);
+      passengers.push({
+        n: paxN,
+        pick: {lat: pendingPickup.lat, lng: pendingPickup.lng},
+        drop: {lat: dropLL.lat, lng: dropLL.lng},
+        pickMarker: pendingPickup._marker,
+        dropMarker: dropM,
+        status: 'waiting',
+        boardedAt: null
+      });
+      pendingPickup = null;
+      paxStep = 0;
+      document.getElementById('hint').textContent = 'Click for next passenger pickup, or switch to Move driver';
+      renderUI();
+      if (driverPos) runMatch();
+    }
+  }
+});
+
+document.getElementById('bDriver').onclick = function() {
+  mode = 'driver'; paxStep = 0;
+  if (pendingPickup && pendingPickup._marker) map.removeLayer(pendingPickup._marker);
+  pendingPickup = null;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  this.classList.add('active');
+  document.getElementById('hint').textContent = 'Click map to place/move the driver';
+};
+
+document.getElementById('bPax').onclick = function() {
+  mode = 'pax'; paxStep = 0;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  this.classList.add('active');
+  document.getElementById('hint').textContent = 'Click map to place a passenger pickup point';
+};
+
+document.getElementById('bReset').onclick = function() {
+  map.eachLayer(l => { if (!(l instanceof L.TileLayer)) map.removeLayer(l); });
+  passengers = []; driverPos = null; prevPos = null; seats = MAX_SEATS; paxN = 0; paxStep = 0;
+  pendingPickup = null; driverMarker = null; beamPoly = null; corridorPoly = null; corridorLine = null;
+  alertQueue = []; alertActive = false;
+  document.getElementById('alert-overlay').classList.remove('show');
+  mode = 'driver';
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  document.getElementById('bDriver').classList.add('active');
+  document.getElementById('hint').textContent = 'Click map to place/move the driver';
+  renderUI();
+};
+
+renderUI();
+</script>
+</body>
+</html>
