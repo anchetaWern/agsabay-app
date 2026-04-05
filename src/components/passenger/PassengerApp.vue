@@ -360,6 +360,11 @@ const handleCancel = async () => {
     clearInterval(ttlTimer)
     ttlTimer = null
   }
+  if (matchTtlTimer) {
+    clearInterval(matchTtlTimer)
+    matchTtlTimer = null
+  }
+  matches.value = []
 }
 
 const handleConfirm = async (match) => {
