@@ -115,15 +115,6 @@
         </p>
       </div>
 
-      <div
-        v-if="nearbyAlert"
-        class="card"
-        style="background: #eff6ff; border: 1px solid #bfdbfe; display: grid; gap: 8px;"
-      >
-        <strong>Passenger nearby!</strong>
-        <p style="margin: 0; color: #1e3a8a;">This alert will auto-dismiss.</p>
-      </div>
-
       <div class="card" style="display: grid; gap: 12px;">
         <h3 style="margin: 0;">Onboard passengers</h3>
         <p v-if="onboardPassengers.length === 0" style="margin: 0; color: #6b7280;">
@@ -167,7 +158,6 @@ const isOnDuty = ref(false)
 const seatsAvailable = ref(null)
 const loading = ref(false)
 const error = ref('')
-const nearbyAlert = ref(null)
 const onboardPassengers = ref([])
 const toasts = ref([])
 const { unlockAudio, playBell } = useAlertSound()
@@ -194,7 +184,6 @@ const {
   stopWatching,
 } = useGps()
 
-let alertTimeout = null
 let channel = null
 let toastId = 0
 let lastSentAt = 0
@@ -445,20 +434,6 @@ const toggleDuty = () => {
   }
 }
 
-const showNearbyAlert = (payload) => {
-  nearbyAlert.value = {
-    passengerId: payload.passenger_id,
-    destLabel: payload.dest_label,
-  }
-
-  if (alertTimeout) {
-    clearTimeout(alertTimeout)
-  }
-  alertTimeout = setTimeout(() => {
-    nearbyAlert.value = null
-  }, 15000)
-}
-
 const handleDropoff = async (passengerId) => {
   if (!driverId.value) return
   try {
@@ -479,7 +454,6 @@ const setupChannel = () => {
   channel = echo.channel(`driver.${driverId.value}`)
 
   channel.subscription.bind('passenger.nearby', (payload) => {
-    showNearbyAlert(payload)
     playBell()
     if (navigator.vibrate) navigator.vibrate(150)
     if (payload?.dest_label) {
@@ -500,7 +474,6 @@ const setupChannel = () => {
       showToast(`Passenger #${payload.passenger_id} onboarded${destLabel}`, 'info')
     }
     seatsAvailable.value = payload.seats_available
-    nearbyAlert.value = null
   })
 
   channel.subscription.bind('passenger.dropped', (payload) => {
@@ -532,6 +505,5 @@ onBeforeUnmount(() => {
     channel.subscription.unbind('passenger.dropped')
     echo.leave(`driver.${driverId.value}`)
   }
-  if (alertTimeout) clearTimeout(alertTimeout)
 })
 </script>
