@@ -36,7 +36,18 @@
         </div>
         <div>
           <p style="margin: 0; color: #6b7280;">Duty status</p>
-          <h3 style="margin: 4px 0 0;">{{ isOnDuty ? 'On duty' : 'Off duty' }}</h3>
+          <h3 style="margin: 4px 0 0; display: flex; align-items: center; gap: 8px;">
+            <span
+              :style="{
+                width: '10px',
+                height: '10px',
+                borderRadius: '999px',
+                background: dutyIndicatorColor,
+                display: 'inline-block',
+              }"
+            ></span>
+            {{ isOnDuty ? 'On duty' : 'Off duty' }}
+          </h3>
         </div>
         <p style="margin: 0;">Seats available: {{ seatsAvailableDisplay }}</p>
         <button
@@ -239,6 +250,8 @@ const dutyElapsedMs = computed(() => {
 })
 
 const dutyElapsedDisplay = computed(() => formatDuration(dutyElapsedMs.value))
+
+const dutyIndicatorColor = computed(() => (isOnDuty.value ? '#16a34a' : '#9ca3af'))
 
 const startDutyTimer = () => {
   if (dutyTimer) return
