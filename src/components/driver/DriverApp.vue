@@ -29,7 +29,11 @@
         </button>
       </div>
 
-      <div class="card" style="display: grid; gap: 12px;">
+      <div class="card" style="display: grid; gap: 12px; position: relative;">
+        <div style="position: absolute; top: 12px; right: 12px; text-align: right;">
+          <p style="margin: 0; font-size: 12px; color: #6b7280;">On-duty time</p>
+          <p style="margin: 2px 0 0; font-weight: 600;">{{ dutyElapsedDisplay }}</p>
+        </div>
         <div>
           <p style="margin: 0; color: #6b7280;">Duty status</p>
           <h3 style="margin: 4px 0 0;">{{ isOnDuty ? 'On duty' : 'Off duty' }}</h3>
@@ -126,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as Sentry from '@sentry/vue'
 import { useGps } from '../../composables/useGps'
 import { useAlertSound } from '../../composables/useAlertSound'
@@ -156,6 +160,9 @@ const nearbyAlert = ref(null)
 const onboardPassengers = ref([])
 const toasts = ref([])
 const { unlockAudio, playBell } = useAlertSound()
+const dutyStartedAt = ref(null)
+const dutyTick = ref(Date.now())
+let dutyTimer = null
 
 const captureError = (err, context = {}) => {
   if (!import.meta.env.VITE_SENTRY_DSN) return
@@ -216,6 +223,37 @@ const clearError = () => {
 const seatsAvailableDisplay = computed(() =>
   seatsAvailable.value === null ? '--' : seatsAvailable.value,
 )
+
+const formatDuration = (ms) => {
+  const totalSeconds = Math.floor(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+}
+
+const dutyElapsedMs = computed(() => {
+  if (!isOnDuty.value || !dutyStartedAt.value) return 0
+  return Math.max(0, dutyTick.value - dutyStartedAt.value)
+})
+
+const dutyElapsedDisplay = computed(() => formatDuration(dutyElapsedMs.value))
+
+const startDutyTimer = () => {
+  if (dutyTimer) return
+  dutyTick.value = Date.now()
+  dutyTimer = setInterval(() => {
+    dutyTick.value = Date.now()
+  }, 1000)
+}
+
+const stopDutyTimer = () => {
+  if (!dutyTimer) return
+  clearInterval(dutyTimer)
+  dutyTimer = null
+  dutyTick.value = Date.now()
+}
 
 const gpsStatusText = computed(() => {
   if (!isOnDuty.value) return 'GPS idle'
@@ -340,6 +378,10 @@ const startDuty = async () => {
   try {
     const response = await setDriverDuty(driverId.value, true)
     isOnDuty.value = response.data?.is_on_duty ?? true
+    if (isOnDuty.value) {
+      dutyStartedAt.value = Date.now()
+      startDutyTimer()
+    }
     lastSentAt = 0
     lastSentLatLng = null
     mapLat.value = null
@@ -359,6 +401,10 @@ const stopDuty = async () => {
   try {
     const response = await setDriverDuty(driverId.value, false)
     isOnDuty.value = response.data?.is_on_duty ?? false
+    if (!isOnDuty.value) {
+      dutyStartedAt.value = null
+      stopDutyTimer()
+    }
     stopWatching()
     lastSentAt = 0
     lastSentLatLng = null
@@ -465,6 +511,7 @@ onMounted(() => {
 
 
 onBeforeUnmount(() => {
+  stopDutyTimer()
   stopWatching()
   if (channel) {
     channel.subscription.unbind('passenger.nearby')
